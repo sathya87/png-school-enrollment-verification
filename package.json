@@ -1,0 +1,17 @@
+{
+  "name": "png-school-enrollment-verification",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Proof-of-concept School Enrollment Verification & Anti-Fraud System for PNG's National Department of Education",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node src/seed.js --force"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>School Enrollment Verification &amp; Anti-Fraud System</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<div id="login-screen" class="screen">
+  <div class="login-card">
+    <p class="eyebrow">Independent State of Papua New Guinea</p>
+    <h1>School Enrollment Verification<br />&amp; Anti-Fraud System</h1>
+    <p class="subtitle">National Department of Education — Tuition Fee Free (TFF) Funding Integrity Unit</p>
+
+    <form id="login-form">
+      <label>
+        Username
+        <input type="text" id="login-username" autocomplete="username" required />
+      </label>
+      <label>
+        Password
+        <input type="password" id="login-password" autocomplete="current-password" required />
+      </label>
+      <button type="submit">Sign in</button>
+      <p id="login-error" class="error-text" hidden></p>
+    </form>
+
+    <p class="demo-notice">
+      <strong>Demo-grade login:</strong> the first sign-in with any username creates that account with
+      whatever password you type. There is no password reset, email verification, or account recovery.
+      This is intentionally simplified for a proof-of-concept — see the README.
+    </p>
+  </div>
+</div>
+
+<div id="app-screen" class="screen" hidden>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">National Department of Education</p>
+      <h1 class="app-title">School Enrollment Verification &amp; Anti-Fraud System</h1>
+    </div>
+    <div class="header-user">
+      <span id="current-username"></span>
+      <button id="logout-btn" class="btn-ghost">Log out</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="submit">Submit enrollment</button>
+    <button class="tab-btn" data-tab="anomalies">Flagged anomalies</button>
+    <button class="tab-btn" data-tab="disbursement">TFF disbursement calculator</button>
+  </nav>
+
+  <main>
+    <!-- Submit enrollment -->
+    <section id="tab-submit" class="tab-panel active">
+      <h2>Submit enrollment figures</h2>
+      <p class="lede">Enter a school's reported student count for a term/year. Submissions are checked automatically for anomalies the moment they're saved.</p>
+
+      <form id="submission-form" class="card form-grid">
+        <label>
+          School
+          <select id="submission-school" required></select>
+        </label>
+        <label>
+          Year
+          <input type="number" id="submission-year" required />
+        </label>
+        <label>
+          Term
+          <select id="submission-term" required>
+            <option value="1">Term 1</option>
+            <option value="2">Term 2</option>
+            <option value="3">Term 3</option>
+            <option value="4">Term 4</option>
+          </select>
+        </label>
+        <label>
+          Reported student count
+          <input type="number" id="submission-count" min="0" required />
+        </label>
+        <button type="submit" class="btn-primary">Submit enrollment</button>
+      </form>
+
+      <div id="submission-result"></div>
+
+      <h3>Recent submissions</h3>
+      <div id="recent-submissions" class="card"></div>
+    </section>
+
+    <!-- Flagged anomalies -->
+    <section id="tab-anomalies" class="tab-panel">
+      <h2>Flagged anomalies</h2>
+      <p class="lede">Submissions the system flagged for review. Confirming fraud withholds funding down to a verified figure; clearing accepts the reported figure as-is.</p>
+
+      <div class="filters">
+        <label>
+          Severity
+          <select id="filter-severity">
+            <option value="">All</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+        <label>
+          Province
+          <select id="filter-province">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label>
+          Status
+          <select id="filter-status">
+            <option value="">All</option>
+            <option value="open" selected>Open</option>
+            <option value="reviewed_cleared">Reviewed — cleared</option>
+            <option value="confirmed_fraud">Confirmed fraud</option>
+          </select>
+        </label>
+        <button id="refresh-anomalies" class="btn-secondary">Refresh</button>
+      </div>
+
+      <div id="anomalies-list"></div>
+    </section>
+
+    <!-- TFF disbursement calculator -->
+    <section id="tab-disbursement" class="tab-panel">
+      <h2>TFF disbursement calculator</h2>
+      <p class="lede">Compares what a school claimed against its verified enrollment to show the funding gap before money is disbursed.</p>
+
+      <form id="disbursement-form" class="card form-grid">
+        <label>
+          School
+          <select id="disbursement-school" required></select>
+        </label>
+        <button type="submit" class="btn-primary">Calculate</button>
+      </form>
+
+      <div id="disbursement-result"></div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    Proof-of-concept for demonstration purposes only. Illustrative TFF rates — not official NDoE policy figures. See README.
+  </footer>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

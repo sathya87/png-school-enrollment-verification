@@ -1,0 +1,33 @@
+const path = require("node:path");
+const express = require("express");
+const { db } = require("./src/db");
+const seed = require("./src/seed");
+
+const authRoutes = require("./src/routes/auth");
+const schoolRoutes = require("./src/routes/schools");
+const enrollmentRoutes = require("./src/routes/enrollments");
+const anomalyRoutes = require("./src/routes/anomalies");
+const disbursementRoutes = require("./src/routes/disbursement");
+
+// Seed automatically on a fresh database so the demo has data immediately
+// after `npm install && npm start` — see src/seed.js.
+seed.run();
+
+const app = express();
+app.use(express.json());
+
+app.use("/api", authRoutes);
+app.use("/api", schoolRoutes);
+app.use("/api", enrollmentRoutes);
+app.use("/api", anomalyRoutes);
+app.use("/api", disbursementRoutes);
+
+app.use(express.static(path.join(__dirname, "public")));
+
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`PNG School Enrollment Verification & Anti-Fraud System listening on http://localhost:${PORT}`);
+  console.log(`Database file: ${require("./src/db").DB_PATH}`);
+});
+
+module.exports = { app, db };
