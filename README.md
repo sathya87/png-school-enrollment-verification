@@ -4,6 +4,10 @@ A proof-of-concept web application for Papua New Guinea's National Department of
 Education (NDoE) to catch inflated school enrollment figures **before** Tuition
 Fee Free (TFF) funding is disbursed.
 
+**Live demo:** https://png-school-enrollment-verification.onrender.com
+(free-tier hosting — the first request after idle may take ~30-60s to wake up;
+demo login: any username/password creates that account on first sign-in)
+
 **Context:** In 2026, PNG's Education Minister revealed that roughly 2,000
 schools deliberately inflated or falsified enrollment figures to claim more TFF
 funding than they were entitled to. This system demonstrates automated,
@@ -132,14 +136,18 @@ platforms with an ephemeral/read-only filesystem (e.g. plain Vercel/Netlify
 serverless functions) since the database file needs to survive between
 requests and restarts.
 
-**Render** (free tier available):
+**Render** (free tier available) — this is how the live demo above is hosted:
 1. Push this repo to GitHub.
-2. New → Web Service → connect the repo.
-3. Build command: `npm install`. Start command: `npm start`.
-4. Add a **persistent disk** (Render dashboard → Disks) mounted at `/data`,
+2. This repo includes a [`render.yaml`](render.yaml) Blueprint, so Render
+   Dashboard → Blueprints → New Blueprint Instance → select the repo will
+   pre-fill the build/start commands automatically. (Or set up manually:
+   New → Web Service → connect the repo → build command `npm install`,
+   start command `npm start`.)
+3. Add a **persistent disk** (Render dashboard → Disks) mounted at `/data`,
    and set an environment variable so the app writes there — or simply accept
    that on the free tier without a disk, the database resets on each deploy
-   (fine for a one-off demo).
+   (fine for a one-off demo; every fresh boot auto-reseeds itself, see
+   [`src/seed.js`](src/seed.js)).
 
 **Railway:**
 1. Push to GitHub, then "New Project" → "Deploy from GitHub repo".
