@@ -122,6 +122,39 @@ db.exec(`
     sent_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS experts (
+    username TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    bio TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS video_class_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_name TEXT NOT NULL,
+    school_id INTEGER REFERENCES schools(id),
+    subject TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    preferred_time TEXT,
+    status TEXT NOT NULL DEFAULT 'requested' CHECK (status IN ('requested','accepted','completed','cancelled')),
+    requested_by TEXT NOT NULL,
+    expert_username TEXT REFERENCES experts(username),
+    room_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    accepted_at TEXT,
+    completed_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS video_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id TEXT NOT NULL,
+    sender_username TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('offer','answer','ice')),
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_submissions_school ON enrollment_submissions(school_id, year, term);
   CREATE INDEX IF NOT EXISTS idx_anomalies_submission ON anomalies(submission_id);
   CREATE INDEX IF NOT EXISTS idx_students_school ON students(school_id, enrollment_status);
@@ -130,6 +163,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records(student_id, date);
   CREATE INDEX IF NOT EXISTS idx_homework_school ON homework_assignments(school_id, grade);
   CREATE INDEX IF NOT EXISTS idx_sms_log_student ON sms_log(student_id, sent_at);
+  CREATE INDEX IF NOT EXISTS idx_video_requests_status ON video_class_requests(status, subject);
+  CREATE INDEX IF NOT EXISTS idx_video_signals_room ON video_signals(room_id, id);
 `);
 
 module.exports = { db, DB_PATH };

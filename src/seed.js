@@ -1,3 +1,4 @@
+const crypto = require("node:crypto");
 const { db } = require("./db");
 const { detectAnomalies } = require("./anomalyDetection");
 
@@ -199,6 +200,61 @@ function seedSyllabus() {
   }
 }
 
+function seedExpertsAndVideoRequests(schoolIds) {
+  const insertExpert = db.prepare(
+    `INSERT INTO experts (username, name, subject, bio) VALUES (?, ?, ?, ?)`
+  );
+  insertExpert.run(
+    "dr-maria-santos",
+    "Dr. Maria Santos",
+    "Mathematics",
+    "PhD in Applied Mathematics; 10 years teaching across the Asia-Pacific region."
+  );
+  insertExpert.run(
+    "prof-james-oduya",
+    "Prof. James Oduya",
+    "Science",
+    "Physics professor, University of Nairobi; volunteers with global STEM outreach programs."
+  );
+  insertExpert.run(
+    "ms-linda-kila",
+    "Ms. Linda Kila",
+    "English",
+    "PNG-born English literature teacher now based in Australia."
+  );
+
+  const nowStr = () => db.prepare("SELECT datetime('now') AS d").get().d;
+  const dt = (modifier) => db.prepare("SELECT datetime('now', ?) AS d").get(modifier).d;
+  const dtPlus = (base, modifier) => db.prepare("SELECT datetime(?, ?) AS d").get(base, modifier).d;
+
+  const insertRequest = db.prepare(
+    `INSERT INTO video_class_requests
+       (student_name, school_id, subject, topic, preferred_time, status, requested_by, expert_username, room_id, created_at, accepted_at, completed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+
+  // Open request — visible to any expert who teaches Mathematics, not yet accepted.
+  insertRequest.run(
+    "Andrew Aisi", schoolIds[0], "Mathematics", "Fractions and decimals help session",
+    "Fri 3pm PNG time", "requested", "district-manager-demo", null, null, dt("-2 hours"), null, null
+  );
+
+  // Accepted request with a live room — demonstrates the "Join call" state.
+  insertRequest.run(
+    "Simon Waigani", schoolIds[4], "Science", "Intro to forces and motion",
+    null, "accepted", "district-manager-demo", "prof-james-oduya",
+    crypto.randomBytes(8).toString("hex"), dt("-1 hours"), nowStr(), null
+  );
+
+  // Completed request — demonstrates the class-history view.
+  const completedAccepted = dt("-1 days");
+  insertRequest.run(
+    "Ruth Waigani", schoolIds[0], "English", "Essay structure workshop",
+    null, "completed", "district-manager-demo", "ms-linda-kila",
+    crypto.randomBytes(8).toString("hex"), completedAccepted, completedAccepted, dtPlus(completedAccepted, "+40 minutes")
+  );
+}
+
 function run({ force } = {}) {
   const existing = db.prepare("SELECT COUNT(*) AS n FROM schools").get().n;
   if (existing > 0 && !force) {
@@ -207,6 +263,9 @@ function run({ force } = {}) {
   }
   if (force) {
     db.exec(`
+      DELETE FROM video_signals;
+      DELETE FROM video_class_requests;
+      DELETE FROM experts;
       DELETE FROM sms_log;
       DELETE FROM homework_assignments;
       DELETE FROM attendance_records;
@@ -253,7 +312,9 @@ function run({ force } = {}) {
   insertHomework.run(gordonsId, "Grade 5", "Mathematics", "Complete worksheet 4: fractions and decimals, questions 1-15.");
   insertHomework.run(kerowagiId, "Grade 3", "English", "Read chapter 2 of the reader and write a 5-sentence summary.");
 
-  console.log(`Seeded ${schoolIds.length} schools with enrollment history, teachers, syllabus, two student rosters with attendance and parent contacts, and sample homework.`);
+  seedExpertsAndVideoRequests(schoolIds);
+
+  console.log(`Seeded ${schoolIds.length} schools with enrollment history, teachers, syllabus, two student rosters with attendance and parent contacts, sample homework, and video-class experts/requests.`);
 }
 
 module.exports = { run };

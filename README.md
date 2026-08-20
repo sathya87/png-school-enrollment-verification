@@ -38,6 +38,15 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
   attendance record, the actual homework row, the actual attendance rate)
   and logged to `sms_log` with a real send attempt per message — see the SMS
   note below for what "real" means here.
+- **Video classes with global experts.** Students (or the adult submitting on
+  their behalf) request a live session with a subject-matter expert; any
+  logged-in user can self-register an expert profile and accept matching
+  requests. Accepted calls connect over a **real WebRTC peer-to-peer video
+  connection** — actual camera/microphone capture and a live SDP
+  offer/answer/ICE-candidate exchange, not a mocked call screen. Signaling
+  is polled over the existing REST API rather than a WebSocket, to stay on
+  the plain Node/Express/SQLite stack — see the note below on what that
+  trades off.
 - **The review workflow.** Marking an anomaly "Confirmed fraud" actually writes
   a `verified_count` onto the underlying submission, and the disbursement
   calculator recalculates the funding gap from that verified figure — it isn't
@@ -55,8 +64,9 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
   real deployment would integrate with NDoE's actual staff directory /
   identity provider and role-based access (district manager vs. ministry
   reviewer are not currently separate roles — any logged-in user can do both).
-- **Anomaly detection is statistics-only.** The three rules below compare a
-  submission against *its own reported history* and a capacity heuristic.
+- **Anomaly detection is statistics-only.** The four rules below compare a
+  submission against *its own reported history*, a capacity heuristic, and
+  (for the two schools with roster data) the actual student list.
   Real-world fraud detection would also cross-reference:
   - Independent attendance registers / physical headcounts and school
     inspections,
@@ -92,6 +102,26 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
   check and Reports tab only evaluate schools with roster data, which is
   realistic — most PNG schools would not have a digitized roster on day one
   of a system like this.
+- **Video calls have no TURN server.** The WebRTC connection uses only a
+  public STUN server (Google's) for NAT traversal — enough for most home/
+  office networks, but calls across strict corporate firewalls or symmetric
+  NATs can fail to connect. A production deployment would add a TURN
+  service (e.g. Twilio Network Traversal, coturn) as a relay fallback.
+- **Signaling is polled, not pushed.** Offer/answer/ICE messages are
+  exchanged by posting to and polling a REST endpoint (`/api/video-requests/
+  :id/signals`) roughly once a second, rather than over a WebSocket —
+  this keeps the whole app on one plain HTTP/SQLite stack with no extra
+  server process, at the cost of a few seconds of call-setup latency
+  compared to a push-based signaling channel.
+- **No expert vetting or scheduling.** Anyone who registers a subject/bio
+  becomes an "expert" immediately — there's no identity verification,
+  background check, or calendar/availability system. Any registered expert
+  can accept any request in their subject, first-come-first-served.
+- **Video/audio only works with a real camera and microphone on both
+  ends.** It cannot be demonstrated in a browser automation sandbox or any
+  environment without media hardware — the request/accept workflow and
+  signaling exchange can be verified without one, but the actual video
+  connection needs two real devices.
 
 ## Data model
 
@@ -113,6 +143,12 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
   created-by.
 - **SMS log** — student, phone, message type (daily_status/homework/report),
   body, status (sent/simulated/failed), sent-by, sent-at.
+- **Experts** — username, name, subject, bio (one profile per user account).
+- **Video class requests** — student name, school, subject, topic, preferred
+  time, status (requested/accepted/completed/cancelled), requested-by,
+  accepted expert, room id.
+- **Video signals** — room id, sender, type (offer/answer/ice), payload —
+  the WebRTC signaling exchange, keyed by room.
 
 ## Anomaly detection rules
 
@@ -159,6 +195,13 @@ npm run seed
 combination becomes your account. Use the same username/password again next
 time to sign back in.
 
+**Trying the video classes tab:** three demo experts are pre-seeded —
+sign in as `dr-maria-santos` (Mathematics), `prof-james-oduya` (Science), or
+`ms-linda-kila` (English) with any password to see their own accepted/
+completed classes and accept new matching requests. `getUserMedia` (camera/
+mic access) requires a secure context — this works on `localhost` and on
+the HTTPS live demo, but not over plain `http://` on a LAN IP.
+
 ## API reference
 
 All endpoints except `/api/login` require `Authorization: Bearer <token>`
@@ -191,6 +234,16 @@ All endpoints except `/api/login` require `Authorization: Bearer <token>`
 | `/api/notifications/daily-status` | POST | `{ schoolId, grade?, date? }` → SMS each student's status for that date to their parent |
 | `/api/notifications/homework` | POST | `{ schoolId, grade, subject, description, dueDate }` → creates homework and SMS's the grade's parents |
 | `/api/notifications/report` | POST | `{ studentId }` → SMS's a one-off attendance + latest-homework summary to that student's parent |
+| `/api/experts` | GET | List experts (filter with `?subject=`) |
+| `/api/experts/me` | GET | The logged-in user's own expert profile, or `null` |
+| `/api/experts/register` | POST | `{ name, subject, bio? }` → creates or updates the caller's expert profile |
+| `/api/video-requests` | GET | List class requests (filter with `?status=` / `?subject=`) |
+| `/api/video-requests/:id` | GET | One request |
+| `/api/video-requests` | POST | `{ studentName, schoolId?, subject, topic, preferredTime? }` |
+| `/api/video-requests/:id/accept` | POST | Registered experts only; assigns the caller as expert and generates a room id |
+| `/api/video-requests/:id/complete` | POST | Requester or accepted expert only; marks the class completed |
+| `/api/video-requests/:id/signals` | GET | Poll for the other participant's WebRTC signals (`?after=<lastId>`) |
+| `/api/video-requests/:id/signals` | POST | `{ type: "offer" \| "answer" \| "ice", payload }` — post one signal |
 
 ## Deploying publicly (for stakeholder demos)
 
@@ -238,8 +291,9 @@ src/auth.js                  Demo login + session token verification
 src/anomalyDetection.js      The four fraud-detection rules
 src/disbursement.js          TFF claimed-vs-verified calculation
 src/sms.js                   Twilio-or-simulate SMS sender
-src/seed.js                  Seeds 10 sample schools, two full rosters, teachers, syllabus, homework
+src/seed.js                  Seeds 10 sample schools, two full rosters, teachers, syllabus, homework, experts
 src/routes/                  Express routers for each API resource
+public/app.js                Frontend logic, including the WebRTC call flow for video classes
 public/                      Static frontend (HTML/CSS/vanilla JS, no build step)
 data/enrollment.db           The SQLite database file (created on first run)
 ```

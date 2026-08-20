@@ -122,6 +122,9 @@ async function bootApp() {
   await loadSyllabus();
   await loadReports();
   await loadNotifications();
+  await loadExpertProfile();
+  await loadOpenRequests();
+  await loadMyClasses();
 }
 
 async function loadSchools() {
@@ -135,6 +138,7 @@ async function loadSchools() {
   SCHOOL_FILTER_SELECT_IDS.forEach((id) => {
     document.getElementById(id).innerHTML = `<option value="">All</option>` + options;
   });
+  document.getElementById("video-request-school").innerHTML = `<option value="">—</option>` + options;
   await refreshStudentSelectFor("attendance-school", "attendance-student");
   await refreshStudentSelectFor("report-send-school", "report-send-student");
 }
@@ -743,6 +747,253 @@ async function loadNotifications() {
 
 document.getElementById("refresh-notifications").addEventListener("click", loadNotifications);
 document.getElementById("notifications-filter-school").addEventListener("change", loadNotifications);
+
+// ---------- Video classes ----------
+
+const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+
+document.getElementById("expert-register-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const resultEl = document.getElementById("expert-register-result");
+  try {
+    await api("/experts/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: document.getElementById("expert-name").value,
+        subject: document.getElementById("expert-subject").value,
+        bio: document.getElementById("expert-bio").value || null,
+      }),
+    });
+    resultEl.innerHTML = `<div class="banner success">Expert profile saved. You'll now see matching open requests below.</div>`;
+    await loadOpenRequests();
+  } catch (err) {
+    resultEl.innerHTML = `<div class="banner flagged">${err.message}</div>`;
+  }
+});
+
+async function loadExpertProfile() {
+  const profile = await api("/experts/me");
+  if (profile) {
+    document.getElementById("expert-name").value = profile.name;
+    document.getElementById("expert-subject").value = profile.subject;
+    document.getElementById("expert-bio").value = profile.bio || "";
+  }
+}
+
+document.getElementById("video-request-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const resultEl = document.getElementById("video-request-result");
+  try {
+    await api("/video-requests", {
+      method: "POST",
+      body: JSON.stringify({
+        studentName: document.getElementById("video-request-student").value,
+        schoolId: document.getElementById("video-request-school").value || null,
+        subject: document.getElementById("video-request-subject").value,
+        topic: document.getElementById("video-request-topic").value,
+        preferredTime: document.getElementById("video-request-time").value || null,
+      }),
+    });
+    resultEl.innerHTML = `<div class="banner success">Request submitted — it will appear to matching experts as an open request.</div>`;
+    ["video-request-subject", "video-request-topic", "video-request-time"].forEach(
+      (id) => (document.getElementById(id).value = "")
+    );
+    await loadOpenRequests();
+    await loadMyClasses();
+  } catch (err) {
+    resultEl.innerHTML = `<div class="banner flagged">${err.message}</div>`;
+  }
+});
+
+async function loadOpenRequests() {
+  const subject = document.getElementById("open-requests-filter-subject").value;
+  const params = new URLSearchParams({ status: "requested" });
+  if (subject) params.set("subject", subject);
+
+  const requests = await api(`/video-requests?${params.toString()}`);
+  const container = document.getElementById("open-requests-list");
+  if (requests.length === 0) {
+    container.innerHTML = "<p>No open requests right now.</p>";
+    return;
+  }
+  container.innerHTML = requests
+    .map(
+      (r) => `
+    <div class="anomaly-card severity-medium" data-id="${r.id}">
+      <div class="anomaly-top">
+        <h4>${r.subject} — ${r.topic}</h4>
+      </div>
+      <p class="anomaly-meta">Student: ${r.studentName}${r.schoolName ? " · " + r.schoolName : ""}${r.preferredTime ? " · Preferred: " + r.preferredTime : ""} · Requested by ${r.requestedBy}</p>
+      <div class="anomaly-actions">
+        <button class="btn-secondary" data-action="accept-request" data-id="${r.id}">Accept &amp; start class</button>
+      </div>
+    </div>`
+    )
+    .join("");
+}
+
+document.getElementById("open-requests-list").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-action='accept-request']");
+  if (!btn) return;
+  try {
+    const request = await api(`/video-requests/${btn.dataset.id}/accept`, { method: "POST" });
+    await loadOpenRequests();
+    await loadMyClasses();
+    await joinCall(request.id);
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.getElementById("refresh-open-requests").addEventListener("click", loadOpenRequests);
+document.getElementById("open-requests-filter-subject").addEventListener("input", loadOpenRequests);
+
+async function loadMyClasses() {
+  const all = await api("/video-requests");
+  const mine = all.filter((r) => r.requestedBy === state.username || r.expertUsername === state.username);
+  const container = document.getElementById("my-classes-list");
+  if (mine.length === 0) {
+    container.innerHTML = "<p>You have no requests or accepted classes yet.</p>";
+    return;
+  }
+  container.innerHTML = mine
+    .map((r) => {
+      const role = r.requestedBy === state.username ? "requester" : "expert";
+      const canJoin = r.status === "accepted";
+      return `
+    <div class="anomaly-card severity-${r.status === "completed" ? "low" : "medium"}" data-id="${r.id}">
+      <div class="anomaly-top">
+        <h4>${r.subject} — ${r.topic}</h4>
+        <span class="badge badge-${r.status === "completed" ? "reviewed_cleared" : r.status === "accepted" ? "open" : "low"}">${r.status}</span>
+      </div>
+      <p class="anomaly-meta">Student: ${r.studentName} · You are the ${role}${r.expertName ? " · Expert: " + r.expertName : ""}</p>
+      ${
+        canJoin
+          ? `<div class="anomaly-actions"><button class="btn-primary" data-action="join-call" data-id="${r.id}">Join call</button></div>`
+          : ""
+      }
+    </div>`;
+    })
+    .join("");
+}
+
+document.getElementById("my-classes-list").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-action='join-call']");
+  if (!btn) return;
+  await joinCall(Number(btn.dataset.id));
+});
+
+document.getElementById("refresh-my-classes").addEventListener("click", loadMyClasses);
+
+// ---------- WebRTC call session ----------
+
+let callSession = null;
+
+async function joinCall(requestId) {
+  const request = await api(`/video-requests/${requestId}`);
+  if (request.status !== "accepted" && request.status !== "completed") {
+    alert("This class has not been accepted yet.");
+    return;
+  }
+  const role = request.requestedBy === state.username ? "caller" : "callee";
+
+  const panel = document.getElementById("video-call-panel");
+  const statusEl = document.getElementById("video-call-status");
+  panel.hidden = false;
+  document.getElementById("video-call-title").textContent = `${request.subject} — ${request.topic}`;
+  statusEl.textContent = "Requesting camera/microphone access…";
+  panel.scrollIntoView({ behavior: "smooth" });
+
+  let localStream;
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  } catch (err) {
+    statusEl.textContent = `Could not access camera/microphone: ${err.message}. This is expected in headless or camera-less environments — see README.`;
+    return;
+  }
+
+  document.getElementById("local-video").srcObject = localStream;
+
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+
+  pc.ontrack = (event) => {
+    document.getElementById("remote-video").srcObject = event.streams[0];
+    statusEl.textContent = "Connected.";
+  };
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      api(`/video-requests/${requestId}/signals`, {
+        method: "POST",
+        body: JSON.stringify({ type: "ice", payload: event.candidate }),
+      }).catch(() => {});
+    }
+  };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "connected") statusEl.textContent = "Connected.";
+    if (pc.connectionState === "failed") statusEl.textContent = "Connection failed — likely a restrictive network with no TURN server configured (see README).";
+  };
+
+  callSession = { pc, localStream, requestId, role, lastSignalId: 0, answered: false };
+
+  if (role === "caller") {
+    statusEl.textContent = "Calling — waiting for the other participant to join…";
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await api(`/video-requests/${requestId}/signals`, {
+      method: "POST",
+      body: JSON.stringify({ type: "offer", payload: offer }),
+    });
+  } else {
+    statusEl.textContent = "Waiting for the caller's offer…";
+  }
+
+  pollSignals();
+}
+
+async function pollSignals() {
+  if (!callSession) return;
+  const { pc, requestId } = callSession;
+  try {
+    const signals = await api(`/video-requests/${requestId}/signals?after=${callSession.lastSignalId}`);
+    for (const signal of signals) {
+      callSession.lastSignalId = Math.max(callSession.lastSignalId, signal.id);
+      if (signal.type === "offer" && callSession.role === "callee" && !callSession.answered) {
+        callSession.answered = true;
+        await pc.setRemoteDescription(new RTCSessionDescription(signal.payload));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await api(`/video-requests/${requestId}/signals`, {
+          method: "POST",
+          body: JSON.stringify({ type: "answer", payload: answer }),
+        });
+      } else if (signal.type === "answer" && callSession.role === "caller") {
+        await pc.setRemoteDescription(new RTCSessionDescription(signal.payload));
+      } else if (signal.type === "ice") {
+        await pc.addIceCandidate(new RTCIceCandidate(signal.payload)).catch(() => {});
+      }
+    }
+  } catch (err) {
+    // Transient poll failure — try again next tick rather than aborting the call.
+  }
+  if (callSession) callSession.pollTimeout = setTimeout(pollSignals, 1000);
+}
+
+document.getElementById("end-call-btn").addEventListener("click", async () => {
+  if (!callSession) return;
+  const { pc, localStream, requestId, pollTimeout } = callSession;
+  clearTimeout(pollTimeout);
+  pc.close();
+  localStream.getTracks().forEach((t) => t.stop());
+  callSession = null;
+  document.getElementById("video-call-panel").hidden = true;
+  try {
+    await api(`/video-requests/${requestId}/complete`, { method: "POST" });
+  } catch (err) {
+    // Already completed by the other participant — fine.
+  }
+  await loadMyClasses();
+});
 
 // ---------- Init ----------
 

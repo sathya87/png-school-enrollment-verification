@@ -57,6 +57,7 @@
     <button class="tab-btn" data-tab="syllabus">Syllabus</button>
     <button class="tab-btn" data-tab="reports">Reports</button>
     <button class="tab-btn" data-tab="notifications">Parent notifications</button>
+    <button class="tab-btn" data-tab="video">Video classes</button>
   </nav>
 
   <main>
@@ -409,6 +410,88 @@
         <button id="refresh-notifications" class="btn-secondary">Refresh</button>
       </div>
       <div id="notifications-list" class="card"></div>
+    </section>
+
+    <!-- Video classes -->
+    <section id="tab-video" class="tab-panel">
+      <h2>Live video classes with global experts</h2>
+      <p class="lede">Students request a session with a subject-matter expert anywhere in the world; an expert accepts and the two connect over a real peer-to-peer video call (WebRTC) inside this page. See README for the STUN-only/no-TURN limitation of this POC.</p>
+
+      <h3>Become an expert</h3>
+      <form id="expert-register-form" class="card form-grid">
+        <label>
+          Your name
+          <input type="text" id="expert-name" required />
+        </label>
+        <label>
+          Subject you can teach
+          <input type="text" id="expert-subject" placeholder="e.g. Mathematics" required />
+        </label>
+        <label style="grid-column: 1 / -1;">
+          Short bio (optional)
+          <input type="text" id="expert-bio" />
+        </label>
+        <button type="submit" class="btn-primary">Register / update profile</button>
+      </form>
+      <div id="expert-register-result"></div>
+
+      <h3>Request a class</h3>
+      <form id="video-request-form" class="card form-grid">
+        <label>
+          Student name
+          <input type="text" id="video-request-student" required />
+        </label>
+        <label>
+          School (optional)
+          <select id="video-request-school"><option value="">—</option></select>
+        </label>
+        <label>
+          Subject
+          <input type="text" id="video-request-subject" placeholder="e.g. Physics" required />
+        </label>
+        <label>
+          Topic
+          <input type="text" id="video-request-topic" placeholder="e.g. Newton's laws" required />
+        </label>
+        <label>
+          Preferred time (optional)
+          <input type="text" id="video-request-time" placeholder="e.g. Fri 3pm PNG time" />
+        </label>
+        <button type="submit" class="btn-primary">Request class</button>
+      </form>
+      <div id="video-request-result"></div>
+
+      <h3>Open requests (for experts)</h3>
+      <div class="filters">
+        <label>
+          Subject
+          <input type="text" id="open-requests-filter-subject" placeholder="filter by subject" />
+        </label>
+        <button id="refresh-open-requests" class="btn-secondary">Refresh</button>
+      </div>
+      <div id="open-requests-list" class="card"></div>
+
+      <h3>My classes</h3>
+      <div class="filters">
+        <button id="refresh-my-classes" class="btn-secondary">Refresh</button>
+      </div>
+      <div id="my-classes-list" class="card"></div>
+
+      <div id="video-call-panel" class="card" hidden style="margin-top: 1.25rem;">
+        <h3 style="margin-top: 0;">Live call — <span id="video-call-title"></span></h3>
+        <p id="video-call-status" class="anomaly-meta"></p>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          <div>
+            <p class="anomaly-meta">You</p>
+            <video id="local-video" autoplay muted playsinline style="width: 280px; background: #000; border-radius: 6px;"></video>
+          </div>
+          <div>
+            <p class="anomaly-meta">Remote participant</p>
+            <video id="remote-video" autoplay playsinline style="width: 280px; background: #000; border-radius: 6px;"></video>
+          </div>
+        </div>
+        <button id="end-call-btn" class="btn-danger" style="margin-top: 1rem;">End call</button>
+      </div>
     </section>
   </main>
 
