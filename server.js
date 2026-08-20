@@ -8,6 +8,12 @@ const schoolRoutes = require("./src/routes/schools");
 const enrollmentRoutes = require("./src/routes/enrollments");
 const anomalyRoutes = require("./src/routes/anomalies");
 const disbursementRoutes = require("./src/routes/disbursement");
+const studentRoutes = require("./src/routes/students");
+const teacherRoutes = require("./src/routes/teachers");
+const attendanceRoutes = require("./src/routes/attendance");
+const syllabusRoutes = require("./src/routes/syllabus");
+const reportRoutes = require("./src/routes/reports");
+const notificationRoutes = require("./src/routes/notifications");
 
 // Seed automatically on a fresh database so the demo has data immediately
 // after `npm install && npm start` — see src/seed.js.
@@ -21,6 +27,12 @@ app.use("/api", schoolRoutes);
 app.use("/api", enrollmentRoutes);
 app.use("/api", anomalyRoutes);
 app.use("/api", disbursementRoutes);
+app.use("/api", studentRoutes);
+app.use("/api", teacherRoutes);
+app.use("/api", attendanceRoutes);
+app.use("/api", syllabusRoutes);
+app.use("/api", reportRoutes);
+app.use("/api", notificationRoutes);
 
 app.use(express.static(path.join(__dirname, "public")));
 

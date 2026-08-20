@@ -21,9 +21,23 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
 - **The database.** A genuine SQLite database file (`data/enrollment.db`) using
   Node's built-in `node:sqlite` module — no mocks, no in-memory data. Stop the
   server, restart it, and every school, submission, and anomaly is still there.
-- **The anomaly detection logic.** Three concrete, auditable rules run
+- **The anomaly detection logic.** Four concrete, auditable rules run
   automatically on every submission (see below) and are backed by real SQL
-  queries against submission history, not canned/hardcoded responses.
+  queries against submission history and the actual student roster, not
+  canned/hardcoded responses.
+- **Student, teacher, and attendance records.** Real per-student rosters
+  (with enrollment status and parent/guardian contact info), a staff
+  directory, and daily attendance — not mocked data. Two schools
+  (Gordons Primary and Kerowagi Primary) are seeded with full rosters and
+  five days of attendance so the roster-mismatch check and Reports tab have
+  something real to show immediately; the other eight schools only have
+  aggregate enrollment figures, mirroring how partial digitization actually
+  looks in the field.
+- **The parent SMS notifications.** Daily attendance status, homework, and
+  per-student report messages are composed from real data (today's
+  attendance record, the actual homework row, the actual attendance rate)
+  and logged to `sms_log` with a real send attempt per message — see the SMS
+  note below for what "real" means here.
 - **The review workflow.** Marking an anomaly "Confirmed fraud" actually writes
   a `verified_count` onto the underlying submission, and the disbursement
   calculator recalculates the funding gap from that verified figure — it isn't
@@ -63,6 +77,21 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
 - **No file uploads / supporting evidence.** A real system would let district
   managers attach enrollment registers, photos, or inspection reports to a
   submission for reviewers to check against.
+- **SMS is simulated unless Twilio is configured.** Set
+  `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` as
+  environment variables to send real text messages; otherwise every send is
+  logged to the console and to `sms_log` with status `simulated` — no
+  external call, no cost, no real telco account needed to demo this. This
+  matches the same "simulated until configured" convention used for SMS in
+  the sibling PNG apps in this workspace (see [`src/sms.js`](src/sms.js)).
+- **Attendance history is short.** The seed data only covers the last 5
+  days for the two rosters with student data — enough to demonstrate the
+  attendance summary report and daily-status SMS, not a full term.
+- **Roster digitization is partial by design.** Only 2 of the 10 seeded
+  schools have a named student roster on file; the roster-mismatch anomaly
+  check and Reports tab only evaluate schools with roster data, which is
+  realistic — most PNG schools would not have a digitized roster on day one
+  of a system like this.
 
 ## Data model
 
@@ -73,6 +102,17 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
   reviewer.
 - **Anomalies** — a reference to the flagged submission, the reason, severity
   (low/medium/high), and status (open / reviewed-cleared / confirmed-fraud).
+- **Students** — school, name, grade, enrollment status
+  (active/transferred/withdrawn), parent/guardian name and phone.
+- **Teachers** — school, name, subject, employment status
+  (active/on_leave/terminated).
+- **Syllabus entries** — school type, grade, subject, term, topic.
+- **Attendance records** — student, date, status (present/absent/late),
+  recorded-by (one row per student per day).
+- **Homework assignments** — school, grade, subject, description, due date,
+  created-by.
+- **SMS log** — student, phone, message type (daily_status/homework/report),
+  body, status (sent/simulated/failed), sent-by, sent-at.
 
 ## Anomaly detection rules
 
@@ -84,7 +124,14 @@ the instant a submission is saved:
    above 20%, high above 50%).
 2. **Capacity ceiling** — reported count exceeds `classrooms × 40` students,
    a rough per-classroom capacity heuristic for PNG schools.
-3. **Duplicate submission** — the same school already has another submission
+3. **Roster mismatch** — reported count is more than 15% higher than the
+   school's actual named-student roster, when that school has roster data on
+   file (severity: medium above 15%, high above 40%). This is the closest
+   thing this POC has to an independent cross-check, catching "phantom
+   student" inflation that a pure year-over-year comparison would miss —
+   see the seeded Kerowagi Primary School case (220 real students, 340
+   reported) in the Flagged anomalies and Reports tabs.
+4. **Duplicate submission** — the same school already has another submission
    for the same year and term (possible resubmission fraud).
 
 ## Running locally
@@ -127,6 +174,23 @@ All endpoints except `/api/login` require `Authorization: Bearer <token>`
 | `/api/anomalies` | GET | List flagged anomalies (filter with `?severity=` / `?status=` / `?province=`) |
 | `/api/anomalies/:id/resolve` | POST | `{ status: "reviewed_cleared" \| "confirmed_fraud", notes?, verifiedCount? }` |
 | `/api/disbursement/:schoolId` | GET | Calculates claimed vs. verified TFF amount and the funding gap |
+| `/api/students` | GET | List students (filter with `?schoolId=` / `?grade=` / `?enrollmentStatus=`) |
+| `/api/students` | POST | `{ schoolId, name, grade, parentName?, parentPhone? }` |
+| `/api/students/:id/status` | POST | `{ enrollmentStatus: "active" \| "transferred" \| "withdrawn" }` |
+| `/api/teachers` | GET | List teachers (filter with `?schoolId=` / `?employmentStatus=`) |
+| `/api/teachers` | POST | `{ schoolId, name, subject }` |
+| `/api/teachers/:id/status` | POST | `{ employmentStatus: "active" \| "on_leave" \| "terminated" }` |
+| `/api/attendance` | GET | List records (filter with `?studentId=` / `?schoolId=` / `?date=`) |
+| `/api/attendance` | POST | `{ studentId, date, status }` — upserts one record per student/date |
+| `/api/syllabus` | GET | List entries (filter with `?schoolType=` / `?grade=` / `?term=`) |
+| `/api/syllabus` | POST | `{ schoolType, grade, subject, term, topic }` |
+| `/api/reports/roster-vs-enrollment` | GET | Active roster count vs. latest reported count per school with roster data |
+| `/api/reports/attendance-summary` | GET | Attendance rate per school with attendance data |
+| `/api/homework` | GET | List homework assignments (filter with `?schoolId=` / `?grade=`) |
+| `/api/notifications` | GET | SMS send history (filter with `?schoolId=` / `?studentId=` / `?messageType=`) |
+| `/api/notifications/daily-status` | POST | `{ schoolId, grade?, date? }` → SMS each student's status for that date to their parent |
+| `/api/notifications/homework` | POST | `{ schoolId, grade, subject, description, dueDate }` → creates homework and SMS's the grade's parents |
+| `/api/notifications/report` | POST | `{ studentId }` → SMS's a one-off attendance + latest-homework summary to that student's parent |
 
 ## Deploying publicly (for stakeholder demos)
 
@@ -171,9 +235,10 @@ mounted volume path instead of the local `data/` folder used in
 server.js                    Express app entry point
 src/db.js                    SQLite connection + schema (CREATE TABLE ...)
 src/auth.js                  Demo login + session token verification
-src/anomalyDetection.js      The three fraud-detection rules
+src/anomalyDetection.js      The four fraud-detection rules
 src/disbursement.js          TFF claimed-vs-verified calculation
-src/seed.js                  Seeds 10 sample schools + submission history
+src/sms.js                   Twilio-or-simulate SMS sender
+src/seed.js                  Seeds 10 sample schools, two full rosters, teachers, syllabus, homework
 src/routes/                  Express routers for each API resource
 public/                      Static frontend (HTML/CSS/vanilla JS, no build step)
 data/enrollment.db           The SQLite database file (created on first run)

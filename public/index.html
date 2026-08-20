@@ -51,6 +51,12 @@
     <button class="tab-btn active" data-tab="submit">Submit enrollment</button>
     <button class="tab-btn" data-tab="anomalies">Flagged anomalies</button>
     <button class="tab-btn" data-tab="disbursement">TFF disbursement calculator</button>
+    <button class="tab-btn" data-tab="students">Students</button>
+    <button class="tab-btn" data-tab="teachers">Teachers</button>
+    <button class="tab-btn" data-tab="attendance">Attendance</button>
+    <button class="tab-btn" data-tab="syllabus">Syllabus</button>
+    <button class="tab-btn" data-tab="reports">Reports</button>
+    <button class="tab-btn" data-tab="notifications">Parent notifications</button>
   </nav>
 
   <main>
@@ -140,6 +146,269 @@
       </form>
 
       <div id="disbursement-result"></div>
+    </section>
+
+    <!-- Students -->
+    <section id="tab-students" class="tab-panel">
+      <h2>Student records</h2>
+      <p class="lede">The actual named-student roster behind each school's aggregate enrollment count. A school with roster data on file gets automatic cross-checking against what it reports (see Flagged anomalies).</p>
+
+      <form id="student-form" class="card form-grid">
+        <label>
+          School
+          <select id="student-school" required></select>
+        </label>
+        <label>
+          Name
+          <input type="text" id="student-name" required />
+        </label>
+        <label>
+          Grade
+          <input type="text" id="student-grade" placeholder="e.g. Grade 5" required />
+        </label>
+        <label>
+          Parent/guardian name
+          <input type="text" id="student-parent-name" />
+        </label>
+        <label>
+          Parent/guardian phone
+          <input type="text" id="student-parent-phone" placeholder="+675 7XX XXXXX" />
+        </label>
+        <button type="submit" class="btn-primary">Add student</button>
+      </form>
+
+      <div class="filters">
+        <label>
+          School
+          <select id="students-filter-school"><option value="">All</option></select>
+        </label>
+        <label>
+          Status
+          <select id="students-filter-status">
+            <option value="">All</option>
+            <option value="active" selected>Active</option>
+            <option value="transferred">Transferred</option>
+            <option value="withdrawn">Withdrawn</option>
+          </select>
+        </label>
+        <button id="refresh-students" class="btn-secondary">Refresh</button>
+      </div>
+
+      <div id="students-list" class="card"></div>
+    </section>
+
+    <!-- Teachers -->
+    <section id="tab-teachers" class="tab-panel">
+      <h2>Teacher records</h2>
+      <p class="lede">Staff roster per school.</p>
+
+      <form id="teacher-form" class="card form-grid">
+        <label>
+          School
+          <select id="teacher-school" required></select>
+        </label>
+        <label>
+          Name
+          <input type="text" id="teacher-name" required />
+        </label>
+        <label>
+          Subject
+          <input type="text" id="teacher-subject" required />
+        </label>
+        <button type="submit" class="btn-primary">Add teacher</button>
+      </form>
+
+      <div class="filters">
+        <label>
+          School
+          <select id="teachers-filter-school"><option value="">All</option></select>
+        </label>
+        <button id="refresh-teachers" class="btn-secondary">Refresh</button>
+      </div>
+
+      <div id="teachers-list" class="card"></div>
+    </section>
+
+    <!-- Attendance -->
+    <section id="tab-attendance" class="tab-panel">
+      <h2>Attendance tracking</h2>
+      <p class="lede">Daily attendance per student — the independent, ground-level record this POC uses to cross-check reported enrollment (see Reports).</p>
+
+      <form id="attendance-form" class="card form-grid">
+        <label>
+          School
+          <select id="attendance-school" required></select>
+        </label>
+        <label>
+          Student
+          <select id="attendance-student" required></select>
+        </label>
+        <label>
+          Date
+          <input type="date" id="attendance-date" required />
+        </label>
+        <label>
+          Status
+          <select id="attendance-status">
+            <option value="present">Present</option>
+            <option value="absent">Absent</option>
+            <option value="late">Late</option>
+          </select>
+        </label>
+        <button type="submit" class="btn-primary">Record</button>
+      </form>
+
+      <div class="filters">
+        <label>
+          School
+          <select id="attendance-filter-school"><option value="">All</option></select>
+        </label>
+        <button id="refresh-attendance" class="btn-secondary">Refresh</button>
+      </div>
+
+      <div id="attendance-list" class="card"></div>
+    </section>
+
+    <!-- Syllabus -->
+    <section id="tab-syllabus" class="tab-panel">
+      <h2>Syllabus</h2>
+      <p class="lede">Standard curriculum topics by school type, grade, and subject.</p>
+
+      <form id="syllabus-form" class="card form-grid">
+        <label>
+          School type
+          <select id="syllabus-school-type">
+            <option value="elementary">Elementary</option>
+            <option value="primary" selected>Primary</option>
+            <option value="secondary">Secondary</option>
+          </select>
+        </label>
+        <label>
+          Grade
+          <input type="text" id="syllabus-grade" placeholder="e.g. Grade 5" required />
+        </label>
+        <label>
+          Subject
+          <input type="text" id="syllabus-subject" required />
+        </label>
+        <label>
+          Term
+          <select id="syllabus-term">
+            <option value="1">Term 1</option>
+            <option value="2">Term 2</option>
+            <option value="3">Term 3</option>
+            <option value="4">Term 4</option>
+          </select>
+        </label>
+        <label>
+          Topic
+          <input type="text" id="syllabus-topic" required />
+        </label>
+        <button type="submit" class="btn-primary">Add entry</button>
+      </form>
+
+      <div class="filters">
+        <label>
+          School type
+          <select id="syllabus-filter-type">
+            <option value="">All</option>
+            <option value="elementary">Elementary</option>
+            <option value="primary">Primary</option>
+            <option value="secondary">Secondary</option>
+          </select>
+        </label>
+        <button id="refresh-syllabus" class="btn-secondary">Refresh</button>
+      </div>
+
+      <div id="syllabus-list" class="card"></div>
+    </section>
+
+    <!-- Reports -->
+    <section id="tab-reports" class="tab-panel">
+      <h2>Reports</h2>
+      <p class="lede">Independent cross-checks: how each school's real student roster and recorded attendance compare against what it reported.</p>
+
+      <h3>Roster vs. reported enrollment</h3>
+      <div id="report-roster" class="card"></div>
+
+      <h3>Attendance summary</h3>
+      <div id="report-attendance" class="card"></div>
+
+      <button id="refresh-reports" class="btn-secondary" style="margin-top: 1rem;">Refresh reports</button>
+    </section>
+
+    <!-- Parent notifications -->
+    <section id="tab-notifications" class="tab-panel">
+      <h2>Parent notifications (SMS)</h2>
+      <p class="lede">Sends via a real SMS gateway when configured; otherwise simulated (logged below, no cost) — see README.</p>
+
+      <h3>Send today's daily status</h3>
+      <form id="daily-status-form" class="card form-grid">
+        <label>
+          School
+          <select id="daily-status-school" required></select>
+        </label>
+        <label>
+          Grade (optional)
+          <input type="text" id="daily-status-grade" placeholder="leave blank for all grades" />
+        </label>
+        <label>
+          Date
+          <input type="date" id="daily-status-date" />
+        </label>
+        <button type="submit" class="btn-primary">Send daily status</button>
+      </form>
+      <div id="daily-status-result"></div>
+
+      <h3>Send homework</h3>
+      <form id="homework-form" class="card form-grid">
+        <label>
+          School
+          <select id="homework-school" required></select>
+        </label>
+        <label>
+          Grade
+          <input type="text" id="homework-grade" placeholder="e.g. Grade 5" required />
+        </label>
+        <label>
+          Subject
+          <input type="text" id="homework-subject" required />
+        </label>
+        <label>
+          Due date
+          <input type="date" id="homework-due" required />
+        </label>
+        <label style="grid-column: 1 / -1;">
+          Description
+          <input type="text" id="homework-description" required />
+        </label>
+        <button type="submit" class="btn-primary">Create &amp; send</button>
+      </form>
+      <div id="homework-result"></div>
+
+      <h3>Send a per-student report</h3>
+      <form id="report-send-form" class="card form-grid">
+        <label>
+          School
+          <select id="report-send-school" required></select>
+        </label>
+        <label>
+          Student
+          <select id="report-send-student" required></select>
+        </label>
+        <button type="submit" class="btn-primary">Send report</button>
+      </form>
+      <div id="report-send-result"></div>
+
+      <h3>Notification history</h3>
+      <div class="filters">
+        <label>
+          School
+          <select id="notifications-filter-school"><option value="">All</option></select>
+        </label>
+        <button id="refresh-notifications" class="btn-secondary">Refresh</button>
+      </div>
+      <div id="notifications-list" class="card"></div>
     </section>
   </main>
 

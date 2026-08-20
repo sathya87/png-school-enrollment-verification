@@ -11,6 +11,14 @@ const STUDENTS_PER_CLASSROOM_CEILING = 40;
 const YOY_INCREASE_FLAG_THRESHOLD = 0.2;
 const YOY_INCREASE_HIGH_SEVERITY_THRESHOLD = 0.5;
 
+// A report more than this fraction above the school's actual named-student
+// roster (students table) is flagged as likely phantom/ghost enrollment —
+// this is the closest thing this POC has to the independent cross-check
+// (attendance registers, physical headcounts) the README describes as
+// missing from pure year-over-year statistics.
+const ROSTER_MISMATCH_THRESHOLD = 0.15;
+const ROSTER_MISMATCH_HIGH_SEVERITY_THRESHOLD = 0.4;
+
 /**
  * Runs all anomaly checks for a just-inserted submission and inserts any
  * triggered anomaly rows. Returns the list of anomalies created (each as
@@ -47,6 +55,21 @@ function detectAnomalies(submission, school) {
     });
   }
 
+  const rosterCount = db
+    .prepare(`SELECT COUNT(*) AS n FROM students WHERE school_id = ? AND enrollment_status = 'active'`)
+    .get(submission.school_id).n;
+
+  if (rosterCount > 0) {
+    const gapFraction = (submission.reported_count - rosterCount) / rosterCount;
+    if (gapFraction > ROSTER_MISMATCH_THRESHOLD) {
+      const pct = Math.round(gapFraction * 100);
+      found.push({
+        reason: `Reported enrollment (${submission.reported_count}) is ${pct}% higher than the school's actual named-student roster (${rosterCount} active students on file) — possible phantom/ghost student inflation.`,
+        severity: gapFraction > ROSTER_MISMATCH_HIGH_SEVERITY_THRESHOLD ? "high" : "medium",
+      });
+    }
+  }
+
   const duplicateCount = db
     .prepare(
       `SELECT COUNT(*) AS n FROM enrollment_submissions
@@ -76,4 +99,5 @@ module.exports = {
   detectAnomalies,
   STUDENTS_PER_CLASSROOM_CEILING,
   YOY_INCREASE_FLAG_THRESHOLD,
+  ROSTER_MISMATCH_THRESHOLD,
 };
