@@ -210,8 +210,10 @@ the instant a submission is saved:
 
 ## Running locally
 
-Requires **Node.js 22.5+** (this POC uses the built-in `node:sqlite` module —
-no native build step, no `better-sqlite3` dependency).
+Requires **Node.js 22.13+** (this POC uses the built-in `node:sqlite` module,
+unflagged as of 22.13 — earlier 22.x releases need a `--experimental-sqlite`
+CLI flag this project doesn't pass. No native build step, no
+`better-sqlite3` dependency).
 
 ```bash
 npm install
