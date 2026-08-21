@@ -5,8 +5,35 @@ Education (NDoE) to catch inflated school enrollment figures **before** Tuition
 Fee Free (TFF) funding is disbursed.
 
 **Live demo:** https://png-school-enrollment-verification.onrender.com
-(free-tier hosting — the first request after idle may take ~30-60s to wake up;
-demo login: any username/password creates that account on first sign-in)
+(free-tier hosting — the first request after idle may take ~30-60s to wake up)
+
+## Roles and login
+
+The login screen has a role picker: **Admin**, **District education manager**,
+**Teacher**, **Student**, and **Visiting expert**. Pick a role, then username
+and any password (first sign-in with that username creates the account).
+Signing in as **Student** additionally asks you to pick your school and then
+your own name from that school's roster (only Gordons Primary and Kerowagi
+Primary have rosters seeded — see below).
+
+Each role sees a different set of tabs:
+
+| Role | Tabs |
+|---|---|
+| Admin | Everything, including resolving fraud flags and the TFF disbursement calculator |
+| District education manager | Submit enrollment, Students, Parent notifications, Video classes |
+| Teacher | Students, Attendance, Syllabus, Reports, Parent notifications, Video classes |
+| Student | Syllabus, Video classes |
+| Visiting expert | Video classes |
+
+The most sensitive actions are enforced server-side, not just hidden in the
+UI: resolving a fraud flag, viewing the TFF disbursement calculator, managing
+the teacher directory, and submitting enrollment figures all require the
+right role on the backend (`requireRole` in [`src/auth.js`](src/auth.js)) —
+a Teacher or Student token gets a real `403`, not just a missing button.
+Other endpoints (attendance, syllabus, reports, notifications, video
+classes) are role-visible in the UI but not yet role-enforced on the
+backend for this stage — see "Simplified" below.
 
 **Context:** In 2026, PNG's Education Minister revealed that roughly 2,000
 schools deliberately inflated or falsified enrollment figures to claim more TFF
@@ -62,8 +89,17 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
   approval, email verification, password reset, or account lockout. This is
   intentional for a fast demo and is disclosed on the login screen itself. A
   real deployment would integrate with NDoE's actual staff directory /
-  identity provider and role-based access (district manager vs. ministry
-  reviewer are not currently separate roles — any logged-in user can do both).
+  identity provider.
+- **Role is chosen at login, not fixed to the account.** The same username
+  can sign in as Admin one time and Teacher the next — there's no per-account
+  role assignment or approval workflow. A real deployment would fix a role
+  (and, for staff, a school) to the account at creation time, likely via
+  the identity provider above. Only the most sensitive server-side actions
+  (resolving fraud flags, the disbursement calculator, teacher HR, submitting
+  enrollment) actually enforce role on the backend right now — the rest
+  (attendance, syllabus, reports, notifications, video classes) are
+  role-visible in the UI but any authenticated role can currently call
+  their APIs directly.
 - **Anomaly detection is statistics-only.** The four rules below compare a
   submission against *its own reported history*, a capacity heuristic, and
   (for the two schools with roster data) the actual student list.
@@ -125,6 +161,8 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
 
 ## Data model
 
+- **Sessions** — token, user, role (chosen at login, not stored on the
+  account), and (for the student role) the linked student record.
 - **Schools** — name, province, district, type (elementary/primary/secondary),
   classroom count (used for the capacity check).
 - **Enrollment submissions** — school, year, term, reported student count,
@@ -191,38 +229,44 @@ To wipe and reseed the demo data at any point:
 npm run seed
 ```
 
-**Logging in:** type any username and password on the login screen — that
-combination becomes your account. Use the same username/password again next
-time to sign back in.
+**Logging in:** pick a role, then type any username and password — that
+combination becomes your account (see "Roles and login" above). Use the
+same username/password/role again next time to sign back in — role is
+picked fresh each time, not stored on the account.
 
 **Trying the video classes tab:** three demo experts are pre-seeded —
-sign in as `dr-maria-santos` (Mathematics), `prof-james-oduya` (Science), or
-`ms-linda-kila` (English) with any password to see their own accepted/
-completed classes and accept new matching requests. `getUserMedia` (camera/
-mic access) requires a secure context — this works on `localhost` and on
-the HTTPS live demo, but not over plain `http://` on a LAN IP.
+sign in as **Visiting expert** with username `dr-maria-santos` (Mathematics),
+`prof-james-oduya` (Science), or `ms-linda-kila` (English) and any password
+to see their own accepted/completed classes and accept new matching
+requests. `getUserMedia` (camera/mic access) requires a secure context —
+this works on `localhost` and on the HTTPS live demo, but not over plain
+`http://` on a LAN IP.
 
 ## API reference
 
-All endpoints except `/api/login` require `Authorization: Bearer <token>`
-(the token returned by login).
+All endpoints except `/api/login` and `/api/public/*` require
+`Authorization: Bearer <token>` (the token returned by login). Endpoints
+marked **admin-only** or **admin/district-manager** return `403` for any
+other role.
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/api/login` | POST | `{ username, password }` → creates the account on first use, or signs in |
+| `/api/login` | POST | `{ username, password, role, studentId? }` → creates the account on first use, or signs in |
+| `/api/public/schools` | GET | Schools list for the login screen's role picker (no auth) |
+| `/api/public/students` | GET | `?schoolId=` — active roster names/grades for the student login picker (no auth, no parent contact info) |
 | `/api/schools` | GET | List schools (filter with `?province=` / `?schoolType=`) |
 | `/api/schools` | POST | Add a school |
 | `/api/enrollments` | GET | List submissions (filter with `?schoolId=` / `?year=` / `?term=` / `?province=`) |
-| `/api/enrollments` | POST | `{ schoolId, year, term, reportedCount }` → submits a figure and runs anomaly detection |
+| `/api/enrollments` | POST | **admin/district-manager.** `{ schoolId, year, term, reportedCount }` → submits a figure and runs anomaly detection |
 | `/api/anomalies` | GET | List flagged anomalies (filter with `?severity=` / `?status=` / `?province=`) |
-| `/api/anomalies/:id/resolve` | POST | `{ status: "reviewed_cleared" \| "confirmed_fraud", notes?, verifiedCount? }` |
-| `/api/disbursement/:schoolId` | GET | Calculates claimed vs. verified TFF amount and the funding gap |
+| `/api/anomalies/:id/resolve` | POST | **admin-only.** `{ status: "reviewed_cleared" \| "confirmed_fraud", notes?, verifiedCount? }` |
+| `/api/disbursement/:schoolId` | GET | **admin-only.** Calculates claimed vs. verified TFF amount and the funding gap |
 | `/api/students` | GET | List students (filter with `?schoolId=` / `?grade=` / `?enrollmentStatus=`) |
 | `/api/students` | POST | `{ schoolId, name, grade, parentName?, parentPhone? }` |
 | `/api/students/:id/status` | POST | `{ enrollmentStatus: "active" \| "transferred" \| "withdrawn" }` |
-| `/api/teachers` | GET | List teachers (filter with `?schoolId=` / `?employmentStatus=`) |
-| `/api/teachers` | POST | `{ schoolId, name, subject }` |
-| `/api/teachers/:id/status` | POST | `{ employmentStatus: "active" \| "on_leave" \| "terminated" }` |
+| `/api/teachers` | GET | **admin-only.** List teachers (filter with `?schoolId=` / `?employmentStatus=`) |
+| `/api/teachers` | POST | **admin-only.** `{ schoolId, name, subject }` |
+| `/api/teachers/:id/status` | POST | **admin-only.** `{ employmentStatus: "active" \| "on_leave" \| "terminated" }` |
 | `/api/attendance` | GET | List records (filter with `?studentId=` / `?schoolId=` / `?date=`) |
 | `/api/attendance` | POST | `{ studentId, date, status }` — upserts one record per student/date |
 | `/api/syllabus` | GET | List entries (filter with `?schoolType=` / `?grade=` / `?term=`) |

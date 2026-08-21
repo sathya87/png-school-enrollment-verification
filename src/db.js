@@ -22,6 +22,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id),
+    role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('student','teacher','admin','district_manager','expert')),
+    student_id INTEGER REFERENCES students(id),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 

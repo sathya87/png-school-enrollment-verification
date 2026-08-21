@@ -1,6 +1,6 @@
 const express = require("express");
 const { db } = require("../db");
-const { requireAuth } = require("../auth");
+const { requireAuth, requireRole } = require("../auth");
 const { detectAnomalies } = require("../anomalyDetection");
 
 const router = express.Router();
@@ -53,7 +53,7 @@ router.get("/enrollments", requireAuth, (req, res) => {
   res.json(rows.map(withSchool));
 });
 
-router.post("/enrollments", requireAuth, (req, res) => {
+router.post("/enrollments", requireAuth, requireRole("admin", "district_manager"), (req, res) => {
   const { schoolId, year, term, reportedCount } = req.body || {};
   const submittedBy = req.user.username;
 

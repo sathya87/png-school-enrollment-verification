@@ -1,7 +1,14 @@
 const state = {
   token: localStorage.getItem("token") || null,
   username: localStorage.getItem("username") || null,
+  role: localStorage.getItem("role") || null,
+  studentId: localStorage.getItem("studentId") || null,
   schools: [],
+};
+
+const ROLE_LABELS = {
+  admin: "Admin", teacher: "Teacher", student: "Student",
+  district_manager: "District education manager", expert: "Visiting expert",
 };
 
 const PROVINCES = [
@@ -42,35 +49,74 @@ async function api(path, options = {}) {
 function showApp() {
   document.getElementById("login-screen").hidden = true;
   document.getElementById("app-screen").hidden = false;
-  document.getElementById("current-username").textContent = state.username;
+  document.getElementById("current-username").textContent = `${state.username} (${ROLE_LABELS[state.role] || state.role})`;
+  filterTabsByRole(state.role);
   bootApp();
 }
 
 function showLogin() {
   document.getElementById("login-screen").hidden = false;
   document.getElementById("app-screen").hidden = true;
+  populateLoginSchoolPicker();
 }
 
 function logout() {
   state.token = null;
   state.username = null;
+  state.role = null;
+  state.studentId = null;
   localStorage.removeItem("token");
   localStorage.removeItem("username");
+  localStorage.removeItem("role");
+  localStorage.removeItem("studentId");
   showLogin();
 }
+
+// ---------- Login role/school/student pickers ----------
+
+async function populateLoginSchoolPicker() {
+  const schools = await fetch("/api/public/schools").then((r) => r.json());
+  const select = document.getElementById("login-school");
+  select.innerHTML = schools.map((s) => `<option value="${s.id}">${s.name} — ${s.province}</option>`).join("");
+  if (schools.length) await populateLoginStudentPicker(schools[0].id);
+}
+
+async function populateLoginStudentPicker(schoolId) {
+  const students = await fetch(`/api/public/students?schoolId=${schoolId}`).then((r) => r.json());
+  const select = document.getElementById("login-student");
+  select.innerHTML = students.length
+    ? students.map((s) => `<option value="${s.id}">${s.name} — ${s.grade}</option>`).join("")
+    : `<option value="">No students on file for this school</option>`;
+}
+
+function updateLoginFieldVisibility() {
+  const role = document.getElementById("login-role").value;
+  document.getElementById("login-school-field").hidden = role !== "student";
+  document.getElementById("login-student-field").hidden = role !== "student";
+}
+
+document.getElementById("login-role").addEventListener("change", updateLoginFieldVisibility);
+document.getElementById("login-school").addEventListener("change", (e) => populateLoginStudentPicker(e.target.value));
+updateLoginFieldVisibility();
 
 document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const username = document.getElementById("login-username").value;
   const password = document.getElementById("login-password").value;
+  const role = document.getElementById("login-role").value;
+  const studentId = role === "student" ? document.getElementById("login-student").value : null;
   const errorEl = document.getElementById("login-error");
   errorEl.hidden = true;
   try {
-    const result = await api("/login", { method: "POST", body: JSON.stringify({ username, password }) });
+    const result = await api("/login", { method: "POST", body: JSON.stringify({ username, password, role, studentId }) });
     state.token = result.token;
     state.username = result.username;
+    state.role = result.role;
+    state.studentId = result.studentId;
     localStorage.setItem("token", state.token);
     localStorage.setItem("username", state.username);
+    localStorage.setItem("role", state.role);
+    if (state.studentId) localStorage.setItem("studentId", state.studentId);
     showApp();
   } catch (err) {
     errorEl.textContent = err.message;
@@ -81,6 +127,25 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
 document.getElementById("logout-btn").addEventListener("click", logout);
 
 // ---------- Tabs ----------
+
+function filterTabsByRole(role) {
+  let firstVisibleTab = null;
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    const allowedRoles = (btn.dataset.roles || "").split(",");
+    const visible = allowedRoles.includes(role);
+    btn.hidden = !visible;
+    if (visible && !firstVisibleTab) firstVisibleTab = btn;
+  });
+  const activeBtn = document.querySelector(".tab-btn.active");
+  if (!activeBtn || activeBtn.hidden) {
+    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+    if (firstVisibleTab) {
+      firstVisibleTab.classList.add("active");
+      document.getElementById(`tab-${firstVisibleTab.dataset.tab}`).classList.add("active");
+    }
+  }
+}
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -107,6 +172,19 @@ function dateOffset(days) {
   return d.toISOString().slice(0, 10);
 }
 
+// Wraps a loader so one role's 403 on a tab-scoped endpoint (e.g. Teachers
+// is admin-only) doesn't abort the rest of the boot sequence for everyone
+// else — each section fails independently and silently if the current
+// role isn't allowed to see it.
+async function safeLoad(fn) {
+  try {
+    await fn();
+  } catch (err) {
+    // Expected for roles without access to this section — that tab is
+    // hidden anyway, so there's nothing to show the error in.
+  }
+}
+
 async function bootApp() {
   await loadSchools();
   populateProvinceFilter();
@@ -114,17 +192,17 @@ async function bootApp() {
   document.getElementById("attendance-date").value = dateOffset(0);
   document.getElementById("daily-status-date").value = dateOffset(-1);
   document.getElementById("homework-due").value = dateOffset(3);
-  await loadRecentSubmissions();
-  await loadAnomalies();
-  await loadStudents();
-  await loadTeachers();
-  await loadAttendance();
-  await loadSyllabus();
-  await loadReports();
-  await loadNotifications();
-  await loadExpertProfile();
-  await loadOpenRequests();
-  await loadMyClasses();
+  await safeLoad(loadRecentSubmissions);
+  await safeLoad(loadAnomalies);
+  await safeLoad(loadStudents);
+  await safeLoad(loadTeachers);
+  await safeLoad(loadAttendance);
+  await safeLoad(loadSyllabus);
+  await safeLoad(loadReports);
+  await safeLoad(loadNotifications);
+  await safeLoad(loadExpertProfile);
+  await safeLoad(loadOpenRequests);
+  await safeLoad(loadMyClasses);
 }
 
 async function loadSchools() {

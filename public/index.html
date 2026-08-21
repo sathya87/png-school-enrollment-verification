@@ -16,6 +16,24 @@
 
     <form id="login-form">
       <label>
+        I am signing in as a
+        <select id="login-role" required>
+          <option value="admin">Admin (ministry / full access)</option>
+          <option value="district_manager">District education manager</option>
+          <option value="teacher">Teacher</option>
+          <option value="student">Student</option>
+          <option value="expert">Visiting expert (video classes)</option>
+        </select>
+      </label>
+      <label id="login-school-field" hidden>
+        School
+        <select id="login-school"></select>
+      </label>
+      <label id="login-student-field" hidden>
+        My name
+        <select id="login-student"></select>
+      </label>
+      <label>
         Username
         <input type="text" id="login-username" autocomplete="username" required />
       </label>
@@ -30,7 +48,9 @@
     <p class="demo-notice">
       <strong>Demo-grade login:</strong> the first sign-in with any username creates that account with
       whatever password you type. There is no password reset, email verification, or account recovery.
-      This is intentionally simplified for a proof-of-concept — see the README.
+      Role is picked fresh each sign-in rather than stored on the account — the same username can sign
+      in as different roles on different visits. This is intentionally simplified for a proof-of-concept
+      — see the README.
     </p>
   </div>
 </div>
@@ -48,16 +68,16 @@
   </header>
 
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="submit">Submit enrollment</button>
-    <button class="tab-btn" data-tab="anomalies">Flagged anomalies</button>
-    <button class="tab-btn" data-tab="disbursement">TFF disbursement calculator</button>
-    <button class="tab-btn" data-tab="students">Students</button>
-    <button class="tab-btn" data-tab="teachers">Teachers</button>
-    <button class="tab-btn" data-tab="attendance">Attendance</button>
-    <button class="tab-btn" data-tab="syllabus">Syllabus</button>
-    <button class="tab-btn" data-tab="reports">Reports</button>
-    <button class="tab-btn" data-tab="notifications">Parent notifications</button>
-    <button class="tab-btn" data-tab="video">Video classes</button>
+    <button class="tab-btn active" data-tab="submit" data-roles="admin,district_manager">Submit enrollment</button>
+    <button class="tab-btn" data-tab="anomalies" data-roles="admin">Flagged anomalies</button>
+    <button class="tab-btn" data-tab="disbursement" data-roles="admin">TFF disbursement calculator</button>
+    <button class="tab-btn" data-tab="students" data-roles="admin,teacher,district_manager">Students</button>
+    <button class="tab-btn" data-tab="teachers" data-roles="admin">Teachers</button>
+    <button class="tab-btn" data-tab="attendance" data-roles="admin,teacher">Attendance</button>
+    <button class="tab-btn" data-tab="syllabus" data-roles="admin,teacher,student">Syllabus</button>
+    <button class="tab-btn" data-tab="reports" data-roles="admin,teacher">Reports</button>
+    <button class="tab-btn" data-tab="notifications" data-roles="admin,teacher,district_manager">Parent notifications</button>
+    <button class="tab-btn" data-tab="video" data-roles="admin,teacher,district_manager,student,expert">Video classes</button>
   </nav>
 
   <main>

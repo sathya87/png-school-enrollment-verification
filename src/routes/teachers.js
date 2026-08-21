@@ -1,6 +1,6 @@
 const express = require("express");
 const { db } = require("../db");
-const { requireAuth } = require("../auth");
+const { requireAuth, requireRole } = require("../auth");
 
 const router = express.Router();
 
@@ -21,7 +21,7 @@ const SELECT_JOINED = `
   JOIN schools ON schools.id = teachers.school_id
 `;
 
-router.get("/teachers", requireAuth, (req, res) => {
+router.get("/teachers", requireAuth, requireRole("admin"), (req, res) => {
   const { schoolId, employmentStatus } = req.query;
   const clauses = [];
   const params = [];
@@ -38,7 +38,7 @@ router.get("/teachers", requireAuth, (req, res) => {
   res.json(rows.map(rowToTeacher));
 });
 
-router.post("/teachers", requireAuth, (req, res) => {
+router.post("/teachers", requireAuth, requireRole("admin"), (req, res) => {
   const { schoolId, name, subject } = req.body || {};
   if (!schoolId || !name || !subject) {
     return res.status(400).json({ error: "schoolId, name, and subject are required." });
@@ -53,7 +53,7 @@ router.post("/teachers", requireAuth, (req, res) => {
   res.status(201).json(rowToTeacher(row));
 });
 
-router.post("/teachers/:id/status", requireAuth, (req, res) => {
+router.post("/teachers/:id/status", requireAuth, requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   const { employmentStatus } = req.body || {};
   if (!["active", "on_leave", "terminated"].includes(employmentStatus)) {

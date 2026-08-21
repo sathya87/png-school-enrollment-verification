@@ -1,6 +1,6 @@
 const express = require("express");
 const { db } = require("../db");
-const { requireAuth } = require("../auth");
+const { requireAuth, requireRole } = require("../auth");
 
 const router = express.Router();
 
@@ -63,7 +63,7 @@ router.get("/anomalies", requireAuth, (req, res) => {
   res.json(rows.map(rowToAnomaly));
 });
 
-router.post("/anomalies/:id/resolve", requireAuth, (req, res) => {
+router.post("/anomalies/:id/resolve", requireAuth, requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   const { status, notes, verifiedCount } = req.body || {};
 
