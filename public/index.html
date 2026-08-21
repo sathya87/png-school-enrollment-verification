@@ -78,6 +78,8 @@
     <button class="tab-btn" data-tab="reports" data-roles="admin,teacher">Reports</button>
     <button class="tab-btn" data-tab="notifications" data-roles="admin,teacher,district_manager">Parent notifications</button>
     <button class="tab-btn" data-tab="video" data-roles="admin,teacher,district_manager,student,expert">Video classes</button>
+    <button class="tab-btn" data-tab="timetable" data-roles="admin,teacher,student">Timetable</button>
+    <button class="tab-btn" data-tab="exams" data-roles="admin,teacher,student">Exams &amp; grades</button>
   </nav>
 
   <main>
@@ -512,6 +514,126 @@
         </div>
         <button id="end-call-btn" class="btn-danger" style="margin-top: 1rem;">End call</button>
       </div>
+    </section>
+
+    <!-- Timetable -->
+    <section id="tab-timetable" class="tab-panel">
+      <h2>Timetable</h2>
+      <p class="lede">Weekly class schedule by school and grade. A teacher can't be double-booked at the same day/period — the system checks before saving.</p>
+
+      <div id="timetable-create-section">
+        <form id="timetable-form" class="card form-grid">
+          <label>
+            School
+            <select id="timetable-school" required></select>
+          </label>
+          <label>
+            Grade
+            <input type="text" id="timetable-grade" placeholder="e.g. Grade 3" required />
+          </label>
+          <label>
+            Day
+            <select id="timetable-day">
+              <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+              <option>Thursday</option><option>Friday</option>
+            </select>
+          </label>
+          <label>
+            Period
+            <select id="timetable-period"></select>
+          </label>
+          <label>
+            Subject
+            <input type="text" id="timetable-subject" required />
+          </label>
+          <label>
+            Teacher (optional)
+            <select id="timetable-teacher"><option value="">—</option></select>
+          </label>
+          <button type="submit" class="btn-primary">Add to timetable</button>
+        </form>
+        <div id="timetable-create-result"></div>
+      </div>
+
+      <div class="filters">
+        <label>
+          School
+          <select id="timetable-filter-school"></select>
+        </label>
+        <label>
+          Grade
+          <input type="text" id="timetable-filter-grade" placeholder="e.g. Grade 3" />
+        </label>
+        <button id="refresh-timetable" class="btn-secondary">Refresh</button>
+      </div>
+      <div id="timetable-list" class="card"></div>
+    </section>
+
+    <!-- Exams & grades -->
+    <section id="tab-exams" class="tab-panel">
+      <h2>Exams &amp; grades</h2>
+      <p class="lede">Record assessment scores and view report cards.</p>
+
+      <div id="exam-record-section">
+        <h3 style="margin-top: 0;">Record a score</h3>
+        <form id="exam-form" class="card form-grid">
+          <label>
+            School
+            <select id="exam-school" required></select>
+          </label>
+          <label>
+            Student
+            <select id="exam-student" required></select>
+          </label>
+          <label>
+            Subject
+            <input type="text" id="exam-subject" required />
+          </label>
+          <label>
+            Term
+            <select id="exam-term">
+              <option value="1">Term 1</option><option value="2">Term 2</option>
+              <option value="3">Term 3</option><option value="4">Term 4</option>
+            </select>
+          </label>
+          <label>
+            Assessment name
+            <input type="text" id="exam-assessment" placeholder="e.g. Term 1 Exam" required />
+          </label>
+          <label>
+            Score
+            <input type="number" id="exam-score" min="0" required />
+          </label>
+          <label>
+            Out of
+            <input type="number" id="exam-max-score" value="100" min="1" />
+          </label>
+          <button type="submit" class="btn-primary">Record score</button>
+        </form>
+        <div id="exam-record-result"></div>
+      </div>
+
+      <h3>Report card</h3>
+      <form id="report-card-form" class="card form-grid">
+        <label id="report-card-school-field">
+          School
+          <select id="report-card-school"></select>
+        </label>
+        <label id="report-card-student-field">
+          Student
+          <select id="report-card-student"></select>
+        </label>
+        <label>
+          Term (optional)
+          <select id="report-card-term">
+            <option value="">All terms</option>
+            <option value="1">Term 1</option><option value="2">Term 2</option>
+            <option value="3">Term 3</option><option value="4">Term 4</option>
+          </select>
+        </label>
+        <button type="submit" class="btn-primary">View report card</button>
+      </form>
+      <div id="report-card-result" class="card"></div>
     </section>
   </main>
 

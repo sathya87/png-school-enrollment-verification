@@ -51,7 +51,16 @@ function showApp() {
   document.getElementById("app-screen").hidden = false;
   document.getElementById("current-username").textContent = `${state.username} (${ROLE_LABELS[state.role] || state.role})`;
   filterTabsByRole(state.role);
+  configureRoleSpecificUI();
   bootApp();
+}
+
+function configureRoleSpecificUI() {
+  const isStudent = state.role === "student";
+  document.getElementById("timetable-create-section").hidden = isStudent;
+  document.getElementById("exam-record-section").hidden = isStudent;
+  document.getElementById("report-card-school-field").hidden = isStudent;
+  document.getElementById("report-card-student-field").hidden = isStudent;
 }
 
 function showLogin() {
@@ -161,9 +170,11 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 const SCHOOL_SELECT_IDS = [
   "submission-school", "disbursement-school", "student-school", "teacher-school",
   "attendance-school", "daily-status-school", "homework-school", "report-send-school",
+  "timetable-school", "exam-school", "report-card-school",
 ];
 const SCHOOL_FILTER_SELECT_IDS = [
   "students-filter-school", "teachers-filter-school", "attendance-filter-school", "notifications-filter-school",
+  "timetable-filter-school",
 ];
 
 function dateOffset(days) {
@@ -203,6 +214,8 @@ async function bootApp() {
   await safeLoad(loadExpertProfile);
   await safeLoad(loadOpenRequests);
   await safeLoad(loadMyClasses);
+  await safeLoad(loadTimetable);
+  await safeLoad(applyStudentSelfService);
 }
 
 async function loadSchools() {
@@ -219,6 +232,9 @@ async function loadSchools() {
   document.getElementById("video-request-school").innerHTML = `<option value="">—</option>` + options;
   await refreshStudentSelectFor("attendance-school", "attendance-student");
   await refreshStudentSelectFor("report-send-school", "report-send-student");
+  await refreshStudentSelectFor("exam-school", "exam-student");
+  await refreshStudentSelectFor("report-card-school", "report-card-student");
+  await refreshTimetableTeacherSelect();
 }
 
 /** Populates a student <select> with the active roster of whichever school is selected in schoolSelectId. */
@@ -237,6 +253,9 @@ async function refreshStudentSelectFor(schoolSelectId, studentSelectId) {
 
 document.getElementById("attendance-school").addEventListener("change", () => refreshStudentSelectFor("attendance-school", "attendance-student"));
 document.getElementById("report-send-school").addEventListener("change", () => refreshStudentSelectFor("report-send-school", "report-send-student"));
+document.getElementById("exam-school").addEventListener("change", () => refreshStudentSelectFor("exam-school", "exam-student"));
+document.getElementById("report-card-school").addEventListener("change", () => refreshStudentSelectFor("report-card-school", "report-card-student"));
+document.getElementById("timetable-school").addEventListener("change", refreshTimetableTeacherSelect);
 
 function populateProvinceFilter() {
   const provinces = [...new Set(state.schools.map((s) => s.province))].sort();
@@ -1072,6 +1091,166 @@ document.getElementById("end-call-btn").addEventListener("click", async () => {
   }
   await loadMyClasses();
 });
+
+// ---------- Timetable ----------
+
+document.getElementById("timetable-period").innerHTML = Array.from({ length: 8 }, (_, i) => i + 1)
+  .map((p) => `<option value="${p}">Period ${p}</option>`)
+  .join("");
+
+async function refreshTimetableTeacherSelect() {
+  const select = document.getElementById("timetable-teacher");
+  const schoolId = document.getElementById("timetable-school").value;
+  if (state.role !== "admin" || !schoolId) {
+    select.innerHTML = `<option value="">—</option>`;
+    return;
+  }
+  const teachers = await api(`/teachers?schoolId=${schoolId}&employmentStatus=active`);
+  select.innerHTML =
+    `<option value="">—</option>` + teachers.map((t) => `<option value="${t.id}">${t.name} — ${t.subject}</option>`).join("");
+}
+
+document.getElementById("timetable-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const resultEl = document.getElementById("timetable-create-result");
+  try {
+    await api("/timetable", {
+      method: "POST",
+      body: JSON.stringify({
+        schoolId: Number(document.getElementById("timetable-school").value),
+        grade: document.getElementById("timetable-grade").value,
+        dayOfWeek: document.getElementById("timetable-day").value,
+        period: Number(document.getElementById("timetable-period").value),
+        subject: document.getElementById("timetable-subject").value,
+        teacherId: document.getElementById("timetable-teacher").value || null,
+      }),
+    });
+    document.getElementById("timetable-subject").value = "";
+    resultEl.innerHTML = `<div class="banner success">Added to the timetable.</div>`;
+    await loadTimetable();
+  } catch (err) {
+    resultEl.innerHTML = `<div class="banner flagged">${err.message}</div>`;
+  }
+});
+
+async function loadTimetable() {
+  const schoolId = document.getElementById("timetable-filter-school").value;
+  const grade = document.getElementById("timetable-filter-grade").value;
+  const params = new URLSearchParams();
+  if (schoolId) params.set("schoolId", schoolId);
+  if (grade) params.set("grade", grade);
+
+  const entries = await api(`/timetable?${params.toString()}`);
+  const container = document.getElementById("timetable-list");
+  if (entries.length === 0) {
+    container.innerHTML = "<p>No timetable entries match this filter.</p>";
+    return;
+  }
+  const canManage = state.role === "admin" || state.role === "teacher";
+  container.innerHTML = `
+    <table>
+      <thead><tr><th>Day</th><th>Period</th><th>School</th><th>Grade</th><th>Subject</th><th>Teacher</th>${canManage ? "<th></th>" : ""}</tr></thead>
+      <tbody>
+        ${entries
+          .map(
+            (t) => `<tr>
+          <td>${t.dayOfWeek}</td>
+          <td>${t.period}</td>
+          <td>${t.schoolName}</td>
+          <td>${t.grade}</td>
+          <td>${t.subject}</td>
+          <td>${t.teacherName || "—"}</td>
+          ${canManage ? `<td><button class="btn-clear" data-action="delete-timetable" data-id="${t.id}">Remove</button></td>` : ""}
+        </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>`;
+}
+
+document.getElementById("timetable-list").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-action='delete-timetable']");
+  if (!btn) return;
+  try {
+    await api(`/timetable/${btn.dataset.id}`, { method: "DELETE" });
+    await loadTimetable();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.getElementById("refresh-timetable").addEventListener("click", loadTimetable);
+document.getElementById("timetable-filter-school").addEventListener("change", loadTimetable);
+
+// ---------- Exams & grades ----------
+
+document.getElementById("exam-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const resultEl = document.getElementById("exam-record-result");
+  try {
+    await api("/exams", {
+      method: "POST",
+      body: JSON.stringify({
+        studentId: Number(document.getElementById("exam-student").value),
+        subject: document.getElementById("exam-subject").value,
+        term: Number(document.getElementById("exam-term").value),
+        assessmentName: document.getElementById("exam-assessment").value,
+        score: Number(document.getElementById("exam-score").value),
+        maxScore: Number(document.getElementById("exam-max-score").value) || 100,
+      }),
+    });
+    resultEl.innerHTML = `<div class="banner success">Score recorded.</div>`;
+    ["exam-subject", "exam-assessment", "exam-score"].forEach((id) => (document.getElementById(id).value = ""));
+  } catch (err) {
+    resultEl.innerHTML = `<div class="banner flagged">${err.message}</div>`;
+  }
+});
+
+async function showReportCard(studentId, term) {
+  const resultEl = document.getElementById("report-card-result");
+  try {
+    const params = term ? `?term=${term}` : "";
+    const card = await api(`/report-card/${studentId}${params}`);
+    resultEl.innerHTML = `
+      <p class="anomaly-meta">${card.studentName} · ${card.grade}${card.term ? " · Term " + card.term : " · All terms"}</p>
+      ${
+        card.subjects.length
+          ? `<table>
+              <thead><tr><th>Subject</th><th>Assessments</th><th>Average</th></tr></thead>
+              <tbody>
+                ${card.subjects
+                  .map((s) => `<tr><td>${s.subject}</td><td>${s.assessmentCount}</td><td>${s.averagePercent}%</td></tr>`)
+                  .join("")}
+              </tbody>
+            </table>
+            <div class="disbursement-grid" style="margin-top: 1rem;">
+              <div class="stat"><div class="stat-label">Overall average</div><div class="stat-value">${card.overallPercent}%</div></div>
+            </div>`
+          : "<p>No exam records on file yet.</p>"
+      }`;
+  } catch (err) {
+    resultEl.innerHTML = `<div class="banner flagged">${err.message}</div>`;
+  }
+}
+
+document.getElementById("report-card-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const studentId = state.role === "student" ? state.studentId : document.getElementById("report-card-student").value;
+  const term = document.getElementById("report-card-term").value;
+  showReportCard(studentId, term);
+});
+
+// ---------- Student self-service (auto-scope Timetable/Report card to the logged-in student) ----------
+
+async function applyStudentSelfService() {
+  if (state.role !== "student") return;
+  const me = await api("/students/me");
+  if (!me) return;
+  document.getElementById("timetable-filter-school").value = me.schoolId;
+  document.getElementById("timetable-filter-grade").value = me.grade;
+  await loadTimetable();
+  await showReportCard(state.studentId, "");
+}
 
 // ---------- Init ----------
 

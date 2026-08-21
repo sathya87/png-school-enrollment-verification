@@ -131,19 +131,26 @@ function seedEnrollments(schoolIds) {
   insertAndDetect(insertSubmission, schoolsById, gorokaId, thisYear, 2, 352, "-1 days");
 }
 
+/** Returns a Map of schoolId -> [{id, subject}, ...] for the teachers just inserted. */
 function seedTeachers(schoolIds, schools) {
   const insert = db.prepare(
     `INSERT INTO teachers (school_id, name, subject, employment_status) VALUES (?, ?, ?, ?)`
   );
+  const bySchool = new Map();
   let nameIndex = 0;
   schoolIds.forEach((schoolId, i) => {
     const teacherCount = 3 + (i % 3); // 3-5 teachers per school
+    const teachers = [];
     for (let t = 0; t < teacherCount; t++) {
       const status = t === teacherCount - 1 && i % 4 === 0 ? "on_leave" : "active";
-      insert.run(schoolId, personName(nameIndex + 500), TEACHER_SUBJECTS[t % TEACHER_SUBJECTS.length], status);
+      const subject = TEACHER_SUBJECTS[t % TEACHER_SUBJECTS.length];
+      const result = insert.run(schoolId, personName(nameIndex + 500), subject, status);
+      teachers.push({ id: Number(result.lastInsertRowid), subject, status });
       nameIndex++;
     }
+    bySchool.set(schoolId, teachers);
   });
+  return bySchool;
 }
 
 /** Formats a deterministic PNG-style mobile number for demo parent contacts. */
@@ -198,6 +205,35 @@ function seedSyllabus() {
       }
     }
   }
+}
+
+const TIMETABLE_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+/** Seeds a Mon-Fri, 4-period-a-day timetable for one grade, cycling through that school's teachers/subjects. */
+function seedTimetable(schoolId, grade, teachers) {
+  const insert = db.prepare(
+    `INSERT INTO timetable_entries (school_id, grade, day_of_week, period, subject, teacher_id) VALUES (?, ?, ?, ?, ?, ?)`
+  );
+  TIMETABLE_DAYS.forEach((day, dayIndex) => {
+    for (let period = 1; period <= 4; period++) {
+      const teacher = teachers[(dayIndex + period) % teachers.length];
+      insert.run(schoolId, grade, day, period, teacher.subject, teacher.id);
+    }
+  });
+}
+
+/** Seeds one exam score per subject per student for the given term. */
+function seedExamRecords(studentIds, subjects, term) {
+  const insert = db.prepare(
+    `INSERT INTO exam_records (student_id, subject, term, assessment_name, score, max_score, recorded_by)
+     VALUES (?, ?, ?, ?, ?, 100, 'district-manager-demo')`
+  );
+  studentIds.forEach((studentId) => {
+    subjects.forEach((subject, i) => {
+      const score = 60 + ((studentId * (i + 3)) % 35);
+      insert.run(studentId, subject, term, `Term ${term} Exam`, score);
+    });
+  });
 }
 
 function seedExpertsAndVideoRequests(schoolIds) {
@@ -267,6 +303,8 @@ function run({ force } = {}) {
       DELETE FROM video_class_requests;
       DELETE FROM experts;
       DELETE FROM sms_log;
+      DELETE FROM exam_records;
+      DELETE FROM timetable_entries;
       DELETE FROM homework_assignments;
       DELETE FROM attendance_records;
       DELETE FROM students;
@@ -279,7 +317,7 @@ function run({ force } = {}) {
   }
   const schoolIds = seedSchools();
   seedEnrollments(schoolIds);
-  seedTeachers(schoolIds, SCHOOLS);
+  const teachersBySchool = seedTeachers(schoolIds, SCHOOLS);
   seedSyllabus();
 
   // Gordons Primary (index 0): a near-complete roster that matches its
@@ -298,6 +336,15 @@ function run({ force } = {}) {
   const kerowagiRoster = seedStudentRoster(kerowagiId, "primary", 220);
   seedAttendance(kerowagiRoster, 5);
 
+  // Timetable + exam records for each school's Grade 3 (every 6th roster
+  // entry, since seedStudentRoster cycles through the 6 primary grades in
+  // order) — enough to demo both features without seeding all 548 students.
+  seedTimetable(gordonsId, "Grade 3", teachersBySchool.get(gordonsId));
+  seedTimetable(kerowagiId, "Grade 3", teachersBySchool.get(kerowagiId));
+  const examSubjects = ["English", "Mathematics", "Science"];
+  seedExamRecords(gordonsRoster.filter((_, i) => i % 6 === 0).slice(0, 15), examSubjects, 1);
+  seedExamRecords(kerowagiRoster.filter((_, i) => i % 6 === 0).slice(0, 15), examSubjects, 1);
+
   const insertSubmission = db.prepare(
     `INSERT INTO enrollment_submissions (school_id, year, term, reported_count, submitted_by, submitted_date)
      VALUES (?, ?, ?, ?, ?, datetime('now', ?))`
@@ -314,7 +361,7 @@ function run({ force } = {}) {
 
   seedExpertsAndVideoRequests(schoolIds);
 
-  console.log(`Seeded ${schoolIds.length} schools with enrollment history, teachers, syllabus, two student rosters with attendance and parent contacts, sample homework, and video-class experts/requests.`);
+  console.log(`Seeded ${schoolIds.length} schools with enrollment history, teachers, syllabus, two student rosters with attendance and parent contacts, sample homework, timetables, exam records, and video-class experts/requests.`);
 }
 
 module.exports = { run };

@@ -157,6 +157,30 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS timetable_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    school_id INTEGER NOT NULL REFERENCES schools(id),
+    grade TEXT NOT NULL,
+    day_of_week TEXT NOT NULL CHECK (day_of_week IN ('Monday','Tuesday','Wednesday','Thursday','Friday')),
+    period INTEGER NOT NULL CHECK (period BETWEEN 1 AND 8),
+    subject TEXT NOT NULL,
+    teacher_id INTEGER REFERENCES teachers(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (school_id, grade, day_of_week, period)
+  );
+
+  CREATE TABLE IF NOT EXISTS exam_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL REFERENCES students(id),
+    subject TEXT NOT NULL,
+    term INTEGER NOT NULL CHECK (term BETWEEN 1 AND 4),
+    assessment_name TEXT NOT NULL,
+    score REAL NOT NULL,
+    max_score REAL NOT NULL DEFAULT 100,
+    recorded_by TEXT NOT NULL,
+    recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_submissions_school ON enrollment_submissions(school_id, year, term);
   CREATE INDEX IF NOT EXISTS idx_anomalies_submission ON anomalies(submission_id);
   CREATE INDEX IF NOT EXISTS idx_students_school ON students(school_id, enrollment_status);
@@ -167,6 +191,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sms_log_student ON sms_log(student_id, sent_at);
   CREATE INDEX IF NOT EXISTS idx_video_requests_status ON video_class_requests(status, subject);
   CREATE INDEX IF NOT EXISTS idx_video_signals_room ON video_signals(room_id, id);
+  CREATE INDEX IF NOT EXISTS idx_timetable_lookup ON timetable_entries(school_id, grade, day_of_week);
+  CREATE INDEX IF NOT EXISTS idx_exam_records_student ON exam_records(student_id, term);
 `);
 
 module.exports = { db, DB_PATH };

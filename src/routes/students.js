@@ -45,6 +45,12 @@ router.get("/students", requireAuth, (req, res) => {
   res.json(rows.map(rowToStudent));
 });
 
+router.get("/students/me", requireAuth, (req, res) => {
+  if (req.user.role !== "student" || !req.user.studentId) return res.json(null);
+  const row = db.prepare(`${SELECT_JOINED} WHERE students.id = ?`).get(req.user.studentId);
+  res.json(row ? rowToStudent(row) : null);
+});
+
 router.post("/students", requireAuth, (req, res) => {
   const { schoolId, name, grade, parentName, parentPhone } = req.body || {};
   if (!schoolId || !name || !grade) {

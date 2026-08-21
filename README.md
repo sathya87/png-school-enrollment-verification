@@ -22,17 +22,20 @@ Each role sees a different set of tabs:
 |---|---|
 | Admin | Everything, including resolving fraud flags and the TFF disbursement calculator |
 | District education manager | Submit enrollment, Students, Parent notifications, Video classes |
-| Teacher | Students, Attendance, Syllabus, Reports, Parent notifications, Video classes |
-| Student | Syllabus, Video classes |
+| Teacher | Students, Attendance, Syllabus, Reports, Parent notifications, Video classes, Timetable, Exams & grades |
+| Student | Syllabus, Video classes, Timetable (own school/grade, auto-scoped), Exams & grades (own report card only) |
 | Visiting expert | Video classes |
 
 The most sensitive actions are enforced server-side, not just hidden in the
 UI: resolving a fraud flag, viewing the TFF disbursement calculator, managing
-the teacher directory, and submitting enrollment figures all require the
-right role on the backend (`requireRole` in [`src/auth.js`](src/auth.js)) —
-a Teacher or Student token gets a real `403`, not just a missing button.
-Other endpoints (attendance, syllabus, reports, notifications, video
-classes) are role-visible in the UI but not yet role-enforced on the
+the teacher directory, submitting enrollment figures, creating/deleting
+timetable entries, and recording exam scores all require the right role on
+the backend (`requireRole` in [`src/auth.js`](src/auth.js)) — a Teacher or
+Student token gets a real `403`, not just a missing button. A student's
+own studentId is also enforced server-side for report cards — they get
+`403` on anyone else's, not just their own hidden picker. Other endpoints
+(attendance, syllabus, reports, notifications, video classes, viewing the
+timetable) are role-visible in the UI but not yet role-enforced on the
 backend for this stage — see "Simplified" below.
 
 **Context:** In 2026, PNG's Education Minister revealed that roughly 2,000
@@ -78,6 +81,16 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
   a `verified_count` onto the underlying submission, and the disbursement
   calculator recalculates the funding gap from that verified figure — it isn't
   a cosmetic status change.
+- **Timetable conflict checking.** Creating a timetable entry runs two real
+  checks against existing data before saving: the same grade/day/period slot
+  at that school can't be double-booked (a database `UNIQUE` constraint), and
+  the same teacher can't be scheduled at the same day/period at any school
+  they're assigned to (a live query) — both return a real `409`, not a
+  client-side-only warning.
+- **Report cards are computed, not stored.** A report card is aggregated
+  on the fly from real `exam_records` rows (per-subject and overall
+  averages) — there's no separate "final grade" field a teacher could set
+  independently of the actual recorded scores.
 - **Sessions and password hashing.** Passwords are salted and hashed
   (PBKDF2-SHA256, 100,000 iterations) before storage, and sessions are random
   opaque tokens stored server-side, not JWTs with client-trusted claims.
@@ -158,6 +171,15 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
   environment without media hardware — the request/accept workflow and
   signaling exchange can be verified without one, but the actual video
   connection needs two real devices.
+- **Timetable is per-grade, not per-student.** There's no concept of
+  elective subjects or a student taking a different set of classes than
+  the rest of their grade — every active student in a grade is assumed to
+  follow that grade's single shared timetable.
+- **No exam weighting or grading scale.** Every assessment counts equally
+  toward a subject's average (a quiz and a final exam both count as one
+  data point), and there's no A/B/C letter-grade mapping — just raw
+  percentages. A real gradebook would weight assessment types differently
+  per NDoE policy.
 
 ## Data model
 
@@ -187,6 +209,10 @@ for ministry staff to confirm fraud and see the funding gap before money moves.
   accepted expert, room id.
 - **Video signals** — room id, sender, type (offer/answer/ice), payload —
   the WebRTC signaling exchange, keyed by room.
+- **Timetable entries** — school, grade, day of week, period, subject,
+  optional teacher; unique per school/grade/day/period.
+- **Exam records** — student, subject, term, assessment name, score,
+  max score, recorded-by.
 
 ## Anomaly detection rules
 
@@ -290,6 +316,13 @@ other role.
 | `/api/video-requests/:id/complete` | POST | Requester or accepted expert only; marks the class completed |
 | `/api/video-requests/:id/signals` | GET | Poll for the other participant's WebRTC signals (`?after=<lastId>`) |
 | `/api/video-requests/:id/signals` | POST | `{ type: "offer" \| "answer" \| "ice", payload }` — post one signal |
+| `/api/students/me` | GET | The logged-in student's own record, or `null` for other roles |
+| `/api/timetable` | GET | List entries (filter with `?schoolId=` / `?grade=` / `?dayOfWeek=`) |
+| `/api/timetable` | POST | **admin/teacher.** `{ schoolId, grade, dayOfWeek, period, subject, teacherId? }` → `409` on a grade-slot or teacher double-booking conflict |
+| `/api/timetable/:id` | DELETE | **admin/teacher.** |
+| `/api/exams` | GET | List exam records (filter with `?studentId=` / `?subject=` / `?term=`; a student role is always scoped to their own) |
+| `/api/exams` | POST | **admin/teacher.** `{ studentId, subject, term, assessmentName, score, maxScore? }` |
+| `/api/report-card/:studentId` | GET | `?term=` optional. A student role gets `403` on any studentId but their own |
 
 ## Deploying publicly (for stakeholder demos)
 
@@ -337,7 +370,7 @@ src/auth.js                  Demo login + session token verification
 src/anomalyDetection.js      The four fraud-detection rules
 src/disbursement.js          TFF claimed-vs-verified calculation
 src/sms.js                   Twilio-or-simulate SMS sender
-src/seed.js                  Seeds 10 sample schools, two full rosters, teachers, syllabus, homework, experts
+src/seed.js                  Seeds 10 sample schools, two full rosters, teachers, syllabus, homework, experts, timetables, exam records
 src/routes/                  Express routers for each API resource
 public/app.js                Frontend logic, including the WebRTC call flow for video classes
 public/                      Static frontend (HTML/CSS/vanilla JS, no build step)

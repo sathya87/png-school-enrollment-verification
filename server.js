@@ -16,6 +16,8 @@ const reportRoutes = require("./src/routes/reports");
 const notificationRoutes = require("./src/routes/notifications");
 const expertRoutes = require("./src/routes/experts");
 const videoClassRoutes = require("./src/routes/videoClasses");
+const timetableRoutes = require("./src/routes/timetable");
+const examRoutes = require("./src/routes/exams");
 
 // Seed automatically on a fresh database so the demo has data immediately
 // after `npm install && npm start` — see src/seed.js.
@@ -37,6 +39,8 @@ app.use("/api", reportRoutes);
 app.use("/api", notificationRoutes);
 app.use("/api", expertRoutes);
 app.use("/api", videoClassRoutes);
+app.use("/api", timetableRoutes);
+app.use("/api", examRoutes);
 
 app.use(express.static(path.join(__dirname, "public")));
 
